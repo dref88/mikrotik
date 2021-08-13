@@ -1,6 +1,7 @@
 # Script to check Mikrotik BGP Session (applicable for nagios and others monitoring systems) 
 
 ## Requirements 📋
+Perl2
 
 Perl
 MikroTik::API perl library
