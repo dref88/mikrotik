@@ -14,6 +14,7 @@ Username and Password with access to the mikrotik router API
 
 1. Download script
 2. Exec permissions
+
     -> chmod +x check_mk_bgp_session
 
 ## Usage
