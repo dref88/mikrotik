@@ -1,0 +1,141 @@
+#!/usr/bin/perl -w
+#
+# Copyright (C) 2015 Jorge Fresneda <j.fresneda@ibersontel.com>
+#
+# Check state of BGP sessions on a RouterOS.
+#
+
+# Library Requirements
+use MikroTik::API;
+use Getopt::Long qw(:config no_ignore_case);
+use strict;
+
+# Constants with nagios states
+use constant {
+  STATE_OK => 0,
+  STATE_WARNING => 1,
+  STATE_CRITICAL => 2,
+  STATE_UNKNOWN => 3,
+};
+
+
+# Global Vars
+my $cf_verbose = 0;
+my $cf_host;
+my $cf_port = 8728;
+my $cf_username;
+my $cf_password;
+my $cf_neighbor;
+my $cf_ssl = 0;
+
+# function to show options (help)
+sub usage
+{
+  print <<EOT;
+Usage: $0 [parameters]
+Parameters:
+-H hostname          Host (name or IP) to connect to
+-p port              API port (default: 8728)
+-s ssl               SSL Enable (default : 0 disable)
+-U username          API username
+-P password          API password
+-N peer              BGP peer to check (IP address)
+-v, -vv              Increase verbosity
+EOT
+  exit(STATE_UNKNOWN);
+}
+
+# function to debugging
+sub debug
+{
+  my $verbose = shift;
+  my $format = shift;
+  my (@args) = @_;
+
+  if ($verbose <= $cf_verbose) {
+    printf $format, @args;
+  }
+}
+
+# function "exit program"
+sub quit
+{
+  my $status = shift;
+  my (@messages) = @_;
+
+  my $status_text;
+
+  if ($status == STATE_OK) {
+    $status_text = "OK";
+  } elsif ($status == STATE_WARNING) {
+    $status_text = "WARNING";
+  } elsif ($status == STATE_CRITICAL) {
+    $status_text = "CRITICAL";
+  } else {
+    $status_text = "UNKNOWN";
+  }
+
+  printf
+      "Peer %s - %s\n",
+      $status_text,
+      join(" | ", @messages);
+
+  exit($status);
+}
+
+# Redirect to usage() function if options or required params not passed
+if (!GetOptions("h|help" => sub { usage(); },
+                "v|verbose" => sub { $cf_verbose = 1; },
+                "vv" => sub { $cf_verbose = 2; },
+                "H|host=s" => \$cf_host,
+                "p|port=i" => \$cf_port,
+                "s|ssl=s" => \$cf_ssl,
+                "U|username=s" => \$cf_username,
+                "P|password=s" => \$cf_password,
+                "N|neighbor=s" => \$cf_neighbor)) {
+  usage();
+}
+
+if(!$cf_host || !$cf_username || !$cf_neighbor) {
+  usage();
+}
+
+#Connect to Mk with MikroTik::API library
+my $api = MikroTik::API->new({
+    host => $cf_host,
+    username => $cf_username,
+    password => $cf_password,
+    use_ssl => $cf_ssl,
+});
+
+# Get bgp sessions and conditions
+my %ret_get_bgp_peer = $api->get_by_key( '/routing/bgp/peer/print', 'remote-address' );
+my $peer = $ret_get_bgp_peer{$cf_neighbor};
+
+if(!$peer){
+
+  quit(STATE_CRITICAL,
+       sprintf("BGP peer %s not found", $cf_neighbor));
+
+}
+
+if ($peer->{disabled} eq "true") {
+  quit(STATE_CRITICAL,
+       sprintf("BGP session to peer %s is disabled", $cf_neighbor),
+       sprintf("Peer details: %s", join(", ", map{qq{$_=$peer->{$_}}} keys %{$peer})))
+
+}
+
+
+if ($peer->{'state'} ne "established") {
+  quit(STATE_CRITICAL,
+       sprintf("BGP session to peer %s is %s", $cf_neighbor, $peer->{'state'}),
+       sprintf("Peer details: %s", join(", ", map{qq{$_=$peer->{$_}}} keys %{$peer})));
+}
+
+quit(STATE_OK,
+     sprintf("BGP session to %s is %s (prefixes=%d)", $cf_neighbor, $peer->{state}, $peer->{"prefix-count"}),
+     sprintf("Peer details: %s", join(", ", map{qq{$_=$peer->{$_}}} keys %{$peer})));
+
+
+$api->logout();
