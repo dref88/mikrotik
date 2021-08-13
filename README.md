@@ -2,7 +2,6 @@
 
 ## Requirements 📋
 Perl
-MikroTik::API perl library
 
 Perl
 MikroTik::API perl library
