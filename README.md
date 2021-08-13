@@ -3,11 +3,11 @@
 ## Requirements 📋
 Perl
 
-Perl
-
 MikroTik::API perl library
+
     -> perl -MCPAN -e shell
     -> install MikroTik::API
+    
 Username and Password with access to the mikrotik router API 
 
 ## Install 🔧
